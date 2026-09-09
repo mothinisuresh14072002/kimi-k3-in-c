@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kimi K3 - 2.78T Parameter C Inference Playground</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Telemetry Panel -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="logo-icon">K3</div>
+                <div class="brand-text">
+                    <h2>Kimi K3</h2>
+                    <span class="badge">Pure C99 Engine</span>
+                </div>
+            </div>
+
+            <div class="card status-card">
+                <h3>System Status</h3>
+                <div class="status-indicator">
+                    <span class="dot active"></span>
+                    <span id="status-text">Engine Ready</span>
+                </div>
+                <div class="info-row">
+                    <span>Model:</span>
+                    <strong id="model-name">2.78T Parameter MoE</strong>
+                </div>
+                <div class="info-row">
+                    <span>Checkpoint:</span>
+                    <span id="ckpt-name" class="mono">scratch/tiny_ckpt</span>
+                </div>
+            </div>
+
+            <div class="card telemetry-card">
+                <h3>Live Telemetry</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <span class="label">Speed</span>
+                        <div class="val-box">
+                            <span id="metric-speed">0.0</span>
+                            <small>tok/s</small>
+                        </div>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Peak RSS</span>
+                        <div class="val-box">
+                            <span id="metric-rss">0.0</span>
+                            <small>MB</small>
+                        </div>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Latency</span>
+                        <div class="val-box">
+                            <span id="metric-latency">0</span>
+                            <small>ms</small>
+                        </div>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Cache Hit</span>
+                        <div class="val-box">
+                            <span id="metric-hit">100</span>
+                            <small>%</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card settings-card">
+                <h3>Generation Settings</h3>
+                <div class="setting-item">
+                    <label for="setting-gen">Max Tokens (`--gen`): <span id="gen-val">16</span></label>
+                    <input type="range" id="setting-gen" min="4" max="64" value="16" step="4">
+                </div>
+                <div class="setting-item">
+                    <label for="setting-preset">Memory Preset:</label>
+                    <select id="setting-preset">
+                        <option value="laptop" selected>Laptop (8.2 GB RSS limit)</option>
+                        <option value="desktop">Desktop (32 GB RSS limit)</option>
+                        <option value="server">Server (128 GB RSS limit)</option>
+                    </select>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="main-content">
+            <header class="top-header">
+                <div class="header-title">
+                    <h1>Kimi K3 Inference Playground</h1>
+                    <p>High-performance MoE inference powered by <code>bin/k3.exe</code> compiled via MSYS2 GCC</p>
+                </div>
+            </header>
+
+            <div class="chat-viewport" id="chat-viewport">
+                <div class="message system-message">
+                    <div class="avatar">⚡</div>
+                    <div class="msg-body">
+                        <h4>Welcome to Kimi K3 Interactive Interface!</h4>
+                        <p>You can type a prompt below to trigger native C inference on the Kimi K3 model. Watch the live telemetry panel on the left update in real time as tokens generate!</p>
+                        <div class="quick-prompts">
+                            <button class="chip" onclick="setPrompt('The capital of France is')">🇫🇷 Capital of France</button>
+                            <button class="chip" onclick="setPrompt('def fibonacci(n):')">💻 Fibonacci Code</button>
+                            <button class="chip" onclick="setPrompt('Hello! My name is')">👋 Greeting</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <textarea id="prompt-input" placeholder="Type a prompt for Kimi K3 (e.g. 'The capital of France is')..." rows="2"></textarea>
+                    <button id="send-btn" onclick="sendPrompt()">
+                        <span>Generate</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

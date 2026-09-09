@@ -31,27 +31,33 @@ find_package(OpenMP)
 find_package(Threads REQUIRED)
 
 add_library(k3_flags INTERFACE)
-target_compile_options(k3_flags INTERFACE
-  -Wall -Wextra
-  # Not cosmetic: weight pointers are `const void *`, and pointer arithmetic on void is a
-  # GNU extension that strides by one byte. Without this the mistake compiles silently.
-  -Wpointer-arith
-  -Wshadow -Wvla
-  -Wno-unused-parameter
-  # Keeps floating-point results reproducible across compilers by disabling automatic FMA
-  # contraction; the op tests compare against a reference at a fixed tolerance.
-  -ffp-contract=off)
+if(MSVC)
+  target_compile_options(k3_flags INTERFACE
+    /W4 /wd4100 /wd4244 /wd4267
+    /arch:AVX2)
+else()
+  target_compile_options(k3_flags INTERFACE
+    -Wall -Wextra
+    # Not cosmetic: weight pointers are `const void *`, and pointer arithmetic on void is a
+    # GNU extension that strides by one byte. Without this the mistake compiles silently.
+    -Wpointer-arith
+    -Wshadow -Wvla
+    -Wno-unused-parameter
+    # Keeps floating-point results reproducible across compilers by disabling automatic FMA
+    # contraction; the op tests compare against a reference at a fixed tolerance.
+    -ffp-contract=off)
 
-if(K3_NATIVE_ARCH)
-  if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
-    # Apple Silicon / AArch64 uses -mcpu rather than the x86 -march spelling.
-    target_compile_options(k3_flags INTERFACE -mcpu=native)
-  else()
-    target_compile_options(k3_flags INTERFACE -march=native)
+  if(K3_NATIVE_ARCH)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
+      # Apple Silicon / AArch64 uses -mcpu rather than the x86 -march spelling.
+      target_compile_options(k3_flags INTERFACE -mcpu=native)
+    else()
+      target_compile_options(k3_flags INTERFACE -march=native)
+    endif()
+  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
+    # Documented x86 baseline. The engine assumes AVX2 + FMA are available.
+    target_compile_options(k3_flags INTERFACE -mavx2 -mfma)
   endif()
-elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
-  # Documented x86 baseline. The engine assumes AVX2 + FMA are available.
-  target_compile_options(k3_flags INTERFACE -mavx2 -mfma)
 endif()
 
 # --------------------------------------------------------------------------- engine --
@@ -73,7 +79,10 @@ target_include_directories(k3 PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/model
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tokenizer)
 
-target_link_libraries(k3 PUBLIC k3_flags m Threads::Threads)
+if(NOT MSVC)
+  target_link_libraries(k3 PUBLIC m)
+endif()
+target_link_libraries(k3 PUBLIC k3_flags Threads::Threads)
 if(OpenMP_C_FOUND)
   target_link_libraries(k3 PUBLIC OpenMP::OpenMP_C)
 endif()
