@@ -13,6 +13,10 @@
 
 set -euo pipefail
 
+export HF_HUB_DISABLE_XET=1
+export HF_HUB_ENABLE_HF_TRANSFER=0
+export HF_XET_HIGH_PERFORMANCE=0
+
 # `stat` and `find -printf` are spelled differently on BSD/macOS than on GNU/Linux.
 # Resolve the stat flavour once here rather than shelling out per file.
 case "$(uname -s)" in
@@ -37,6 +41,15 @@ EXPECT_BYTES=1560936091448
 # all, and once pip is present PEP 668 marks the interpreter externally-managed and
 # refuses. Guessing wrong in an unattended script that is about to move 1.56 TB is
 # worse than stopping with an instruction.
+if ! command -v hf >/dev/null 2>&1; then
+    for p in "$HOME/AppData/Local/Programs/Python/Python312/Scripts" "$HOME/AppData/Local/Programs/Python/Python311/Scripts" "$HOME/.local/bin" "$HOME/.venvs/hf/bin" "/c/Users/$USER/AppData/Local/Programs/Python/Python312/Scripts"; do
+        if [ -d "$p" ] && { [ -f "$p/hf" ] || [ -f "$p/hf.exe" ]; }; then
+            export PATH="$p:$PATH"
+            break
+        fi
+    done
+fi
+
 if ! command -v hf >/dev/null 2>&1; then
     cat >&2 <<'EOF'
 the `hf` CLI is required and was not found on PATH.
@@ -76,10 +89,15 @@ hf cache verify --help >/dev/null 2>&1 || {
 # huggingface_hub itself, so it does not hit the isolated-environment problem above.
 # NOTE: json.load reads its input to EOF, so `hf` still runs to completion rather than
 # taking SIGPIPE from an early-exiting consumer under `set -o pipefail`.
+PYTHON_CMD="python3"
+if ! command -v python3 >/dev/null 2>&1 && command -v python >/dev/null 2>&1; then
+    PYTHON_CMD="python"
+fi
+
 REVISION="${K3_REVISION:-}"
 if [ -z "$REVISION" ]; then
     REVISION="$(hf models info "$REPO" 2>/dev/null \
-                | python3 -c 'import json, sys
+                | $PYTHON_CMD -c 'import json, sys
 try:
     print(json.load(sys.stdin).get("sha", ""))
 except Exception:
@@ -93,6 +111,7 @@ case "$REVISION" in
 esac
 
 mkdir -p "$DEST"
+find "$DEST" -name "*.lock" -type f -delete 2>/dev/null || true
 
 # Free-space preflight. Without this the transfer runs until the filesystem fills, which
 # takes the machine's logging and package manager with it, and the byte-total check below
@@ -109,17 +128,10 @@ if [ "$AVAIL" -lt "$EXPECT_BYTES" ]; then
 fi
 
 echo "downloading $REPO@$REVISION -> $DEST"
-echo "  1.56 TB across $EXPECT_SHARDS shards; expect ~30 min at 1 GB/s"
+echo "  1.56 TB across $EXPECT_SHARDS shards"
 echo
 
-# Xet is the transfer backend in huggingface_hub 1.x. HF_HUB_ENABLE_HF_TRANSFER, which
-# this script used to set, is ignored there and was a hard error on 0.x whenever the
-# hf_transfer package was absent -- which it always was, since nothing installed it.
-#
-# A token is not needed: the repository is public. If one is present in the environment
-# or in a saved login the CLI uses it for higher rate limits; this script never touches it.
-HF_XET_HIGH_PERFORMANCE="${HF_XET_HIGH_PERFORMANCE:-1}" \
-hf download "$REPO" --revision "$REVISION" --local-dir "$DEST" --max-workers 16
+$PYTHON_CMD "$(dirname "$0")/../tools/robust_download.py" "$REPO" "$REVISION" "$DEST"
 
 echo
 echo "verifying…"

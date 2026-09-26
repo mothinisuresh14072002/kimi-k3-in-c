@@ -53,9 +53,17 @@ def health_check():
     if not os.path.exists(bin_path):
         bin_path = os.path.join(ROOT, "bin", "k3")
     
-    tiny_ckpt = os.path.join(ROOT, "scratch", "tiny_ckpt")
-    real_ckpt = os.path.expanduser("~/k3model")
-    active_ckpt = tiny_ckpt if os.path.exists(tiny_ckpt) else real_ckpt
+    env_model = os.environ.get("K3_MODEL_DIR")
+    if env_model and os.path.exists(env_model):
+        active_ckpt = env_model
+    else:
+        candidates = [
+            os.path.join(ROOT, "scratch", "tiny_ckpt"),
+            r"E:\k3model",
+            os.path.join(ROOT, "models"),
+            os.path.expanduser("~/k3model")
+        ]
+        active_ckpt = next((c for c in candidates if os.path.exists(c)), r"E:\k3model")
 
     return {
         "status": "online",
@@ -110,13 +118,28 @@ def chat_completions(req: ChatCompletionRequest):
             full_prompt = "Hello"
 
         # Locate model directory
-        model_dir = os.path.join(ROOT, "scratch", "tiny_ckpt")
-        if not os.path.exists(model_dir):
-            model_dir = os.path.expanduser("~/k3model")
+        model_dir = os.environ.get("K3_MODEL_DIR")
+        if not model_dir or not os.path.exists(model_dir):
+            candidates_model = [
+                r"E:\k3model",
+                os.path.join(ROOT, "scratch", "tiny_ckpt"),
+                os.path.join(ROOT, "models"),
+                os.path.expanduser("~/k3model")
+            ]
+            model_dir = next((c for c in candidates_model if os.path.exists(c)), r"E:\k3model")
 
-        # Encode prompt bytes into token IDs
-        prompt_ids = [ord(c) % 256 for c in full_prompt]
-        ids_str = ",".join(str(i) for i in prompt_ids)
+        # Locate trunk directory
+        trunk_dir = os.environ.get("K3_TRUNK_DIR")
+        if not trunk_dir or not os.path.exists(trunk_dir):
+            candidates_trunk = [
+                r"E:\k3trunk",
+                os.path.join(ROOT, "scratch", "tiny_ckpt"),
+                os.path.join(ROOT, "trunk"),
+                os.path.expanduser("~/k3trunk")
+            ]
+            trunk_dir = next((c for c in candidates_trunk if os.path.exists(c)), None)
+
+        preset = req.preset or os.environ.get("K3_PRESET", "auto")
 
         out_json = os.path.join(ROOT, "k3_run.json")
         if os.path.exists(out_json):
@@ -133,12 +156,15 @@ def chat_completions(req: ChatCompletionRequest):
 
         cmd = [
             bin_path, model_dir,
-            "--ids", ids_str,
+            "--prompt", full_prompt,
+            "--tok", model_dir,
             "--gen", str(req.max_tokens or 16),
-            "--cache-gb", "0.1",
+            "--preset", preset,
             "--incremental",
             "--out", out_json
         ]
+        if trunk_dir:
+            cmd.extend(["--trunk", trunk_dir])
 
         env = os.environ.copy()
         mingw_bin = r"C:\msys64\mingw64\bin"
@@ -146,30 +172,33 @@ def chat_completions(req: ChatCompletionRequest):
             env["PATH"] = mingw_bin + ";" + env.get("PATH", "")
 
         t0 = time.time()
-        proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=60, env=env)
+        proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=600, env=env)
         elapsed = time.time() - t0
 
         if proc.returncode != 0 and not os.path.exists(out_json):
-            raise HTTPException(status_code=500, detail=f"Engine execution failed: {proc.stderr[-300:]}")
+            raise HTTPException(status_code=500, detail=f"Engine execution failed: {proc.stderr[-500:]}")
 
         run_stats = {}
         if os.path.exists(out_json):
             with open(out_json, "r") as f:
                 run_stats = json.load(f)
 
-        gen_ids = run_stats.get("generated_ids", [])
-        
-        # Decode byte token IDs to text string
-        chars = []
-        for i in gen_ids:
-            if 32 <= i <= 126 or i in (10, 13, 9):
-                chars.append(chr(i))
-            else:
-                chars.append(f"[{i}]")
-        generated_text = "".join(chars)
+        generated_text = run_stats.get("generated_text")
+        if not generated_text:
+            gen_ids = run_stats.get("generated_ids", [])
+            chars = []
+            for i in gen_ids:
+                if 32 <= i <= 126 or i in (10, 13, 9):
+                    chars.append(chr(i))
+                else:
+                    chars.append(f"[{i}]")
+            generated_text = "".join(chars)
 
         created_ts = int(time.time())
         chat_id = f"chatcmpl-kimi-{uuid.uuid4().hex[:12]}"
+
+        prompt_ids = run_stats.get("prompt_ids", [])
+        gen_ids = run_stats.get("generated_ids", [])
 
         # Standard OpenAI Response Payload
         return {

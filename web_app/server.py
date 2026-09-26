@@ -25,10 +25,16 @@ class KimiHandler(http.server.SimpleHTTPRequestHandler):
                 gen_count = int(data.get("gen", 16))
                 preset = data.get("preset", "laptop")
                 
-                # Check for tiny_ckpt vs real model
-                model_dir = os.path.join(ROOT, "scratch", "tiny_ckpt")
-                if not os.path.exists(model_dir):
-                    model_dir = os.path.expanduser("~/k3model")
+                # Check for model path (env var, E: drive, tiny_ckpt, or ~/k3model)
+                model_dir = os.environ.get("K3_MODEL_DIR")
+                if not model_dir or not os.path.exists(model_dir):
+                    candidates = [
+                        os.path.join(ROOT, "scratch", "tiny_ckpt"),
+                        r"E:\k3model",
+                        os.path.join(ROOT, "models"),
+                        os.path.expanduser("~/k3model")
+                    ]
+                    model_dir = next((c for c in candidates if os.path.exists(c)), r"E:\k3model")
 
                 # Prepare IDs from prompt bytes if no tokenizer files present
                 prompt_ids = [ord(c) % 256 for c in prompt]
@@ -44,11 +50,19 @@ class KimiHandler(http.server.SimpleHTTPRequestHandler):
                 if not os.path.exists(bin_path):
                     bin_path = os.path.join(ROOT, "bin", "k3")
                 
+                import platform
+                is_windows = platform.system() == "Windows"
+                active_model_dir = "E:/k3model" if is_windows else os.path.expanduser("~/k3model")
+                active_trunk_dir = "E:/k3trunk" if is_windows else os.path.expanduser("~/k3trunk")
+                active_preset = "ultra" if is_windows else preset # Let Linux use the requested preset
+
                 cmd = [
-                    bin_path, model_dir,
-                    "--ids", ids_str,
+                    bin_path, active_model_dir,
+                    "--trunk", active_trunk_dir,
+                    "--preset", active_preset,
+                    "--tok", active_model_dir,
+                    "--prompt", prompt,
                     "--gen", str(gen_count),
-                    "--cache-gb", "0.1",
                     "--incremental",
                     "--out", out_json
                 ]
@@ -58,7 +72,7 @@ class KimiHandler(http.server.SimpleHTTPRequestHandler):
                 if os.path.exists(mingw_bin):
                     env["PATH"] = mingw_bin + ";" + env.get("PATH", "")
 
-                proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=60, env=env)
+                proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, env=env)
                 
                 run_stats = {}
                 if os.path.exists(out_json):
@@ -67,14 +81,13 @@ class KimiHandler(http.server.SimpleHTTPRequestHandler):
 
                 gen_ids = run_stats.get("generated_ids", [])
                 
-                # Simple decode byte to char
-                text_chars = []
-                for i in gen_ids:
-                    if 32 <= i <= 126 or i in (10, 13, 9):
-                        text_chars.append(chr(i))
-                    else:
-                        text_chars.append(f"[{i}]")
-                gen_text = "".join(text_chars)
+                # Extract clean generated text from engine stdout
+                raw_output = proc.stdout
+                gen_text = ""
+                if "--- generated text ---" in raw_output:
+                    parts = raw_output.split("--- generated text ---")
+                    if len(parts) > 1:
+                        gen_text = parts[1].split("----------------------")[0].strip()
 
                 response = {
                     "success": proc.returncode == 0,

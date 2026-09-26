@@ -13,7 +13,15 @@ set -euo pipefail
 MODEL="${1:?usage: pack-trunk.sh <model_dir> <trunk_dir>}"
 TRUNK="${2:?}"
 
-command -v python3 >/dev/null || { echo "python3 required"; exit 1; }
+PYTHON_CMD="python3"
+if command -v python3 >/dev/null 2>&1; then
+    PYTHON_CMD="python3"
+elif command -v python >/dev/null 2>&1; then
+    PYTHON_CMD="python"
+else
+    echo "python or python3 required"
+    exit 1
+fi
 [ -d "$MODEL" ] || { echo "no such model dir: $MODEL"; exit 1; }
 
 # find, not `ls | wc -l`: under `set -euo pipefail` a glob that matches nothing makes
@@ -24,7 +32,7 @@ N=$(find "$MODEL" -maxdepth 1 -name '*.safetensors' | wc -l)
 
 mkdir -p "$TRUNK"
 echo "packing trunk from $N shards -> $TRUNK"
-python3 "$(dirname "$0")/../tools/pack_trunk.py" "$MODEL" "$TRUNK" 93
+$PYTHON_CMD "$(dirname "$0")/../tools/pack_trunk.py" "$MODEL" "$TRUNK" 93
 
 echo
 ls -la "$TRUNK"
