@@ -7,7 +7,7 @@
 <p>Kimi K3 inference in portable C99.<br>No BLAS. No framework. No GPU.</p>
 
 <p>
-<a href="https://github.com/FareedKhan-dev/kimi-k3-in-c/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/FareedKhan-dev/kimi-k3-in-c/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
+<a href="https://github.com/mothinisuresh14072002/kimi-k3-in-c/actions"><img src="https://img.shields.io/github/actions/workflow/status/mothinisuresh14072002/kimi-k3-in-c/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square" alt="License"></a>
 <a href="Makefile"><img src="https://img.shields.io/badge/C99-portable-lightgrey?style=flat-square" alt="C99"></a>
 <a href="#requirements"><img src="https://img.shields.io/badge/platform-Linux%20x86--64-lightgrey?style=flat-square" alt="Platform"></a>
@@ -63,14 +63,13 @@
 
 <hr>
 
-<p>
-  <img src="docs/images/patrick_pray.png" height="44" align="middle" alt="">
-  <i>I am open to AI research roles and PhD positions. <a href="https://drive.google.com/file/d/1yW5xHDS6Mr9ByrkCgVve85OqF4UOPv9K/view?usp=sharing">CV</a>.</i>
-</p>
+<p><i>For original authorship and project history, see the upstream project attribution below.</i></p>
 
 <hr>
 
 </div>
+
+> **Attribution:** This repository contains work originating from [FareedKhan-dev/kimi-k3-in-c](https://github.com/FareedKhan-dev/kimi-k3-in-c). Original benchmark data and claims belong to their documented experiments. Any changes and tests in this repository should be evaluated separately; hosting a copy does not establish original authorship.
 
 <br>
 
